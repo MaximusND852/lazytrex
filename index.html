@@ -403,7 +403,7 @@
   async function loadLeaderboard(){
     const el=document.getElementById('leaderboard-list');
     try{
-      const res=await fetch(API_URL);
+      const res=await fetch(API_URL + '?action=get', {redirect:'follow'});
       const data=await res.json();
       if(!data.length){
         el.innerHTML='<div style="font-size:12px;color:#333;text-align:center;padding:10px;letter-spacing:1px;">No scores yet — be the first! 🦖</div>';
@@ -428,21 +428,24 @@
     const nameEl=document.getElementById('player-name');
     const btn=document.getElementById('submit-score-btn');
     const msg=document.getElementById('submit-msg');
-    const name=(nameEl.value||'').trim();
+    const name=encodeURIComponent((nameEl.value||'').trim());
     const currentScore=parseInt(document.getElementById('score-display').textContent)||0;
     if(!name){nameEl.focus();msg.textContent='Please enter your name first!';msg.style.color='#cc4444';return;}
     if(currentScore<=0){msg.textContent='Score too low to submit!';msg.style.color='#cc4444';return;}
     btn.disabled=true; btn.textContent='SUBMITTING...';
     msg.textContent=''; msg.style.color='#555';
     try{
-      await fetch(API_URL,{
-        method:'POST',
-        body:JSON.stringify({name,score:currentScore}),
+      // Use GET with params to avoid CORS preflight
+      await fetch(API_URL + '?action=post&name='+name+'&score='+currentScore, {
+        method:'GET',
+        redirect:'follow',
+        mode:'no-cors'
       });
       msg.textContent='Score submitted! 🎉';
       msg.style.color='#00ff88';
       btn.textContent='SUBMITTED ✓';
-      loadLeaderboard();
+      // wait a moment then reload leaderboard
+      setTimeout(loadLeaderboard, 1500);
     }catch(e){
       msg.textContent='Failed to submit. Try again.';
       msg.style.color='#cc4444';
