@@ -133,6 +133,27 @@
       </div>
     </div>
     <div style="margin-top:8px;font-size:11px;color:#444;letter-spacing:1px;text-align:center;font-family:monospace;">SPACE / TAP — jump &nbsp;·&nbsp; double tap — double jump</div>
+
+    <!-- NAME INPUT (shown after death) -->
+    <div id="name-form" style="display:none;margin-top:14px;background:#111;border:1.5px solid #222;border-radius:14px;padding:16px 20px;text-align:center;">
+      <div style="font-family:'Bangers',cursive;font-size:18px;letter-spacing:2px;color:#ffe600;margin-bottom:10px;">SUBMIT YOUR SCORE 🦖</div>
+      <div style="display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap;">
+        <input id="player-name" maxlength="16" placeholder="Enter your name..." style="background:#0d0d0d;border:1.5px solid #333;border-radius:8px;color:#fff;font-family:'Bangers',cursive;font-size:16px;letter-spacing:1px;padding:8px 14px;outline:none;width:200px;" onfocus="this.style.borderColor='#00ff88'" onblur="this.style.borderColor='#333'">
+        <button id="submit-score-btn" onclick="submitScore()" style="background:#00ff88;color:#080808;font-family:'Bangers',cursive;font-size:16px;letter-spacing:2px;padding:8px 20px;border:none;border-radius:8px;cursor:pointer;">SUBMIT</button>
+      </div>
+      <div id="submit-msg" style="font-size:12px;color:#555;margin-top:8px;letter-spacing:1px;"></div>
+    </div>
+
+    <!-- LEADERBOARD -->
+    <div style="margin-top:14px;background:#111;border:1.5px solid #222;border-radius:14px;padding:16px 20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="font-family:'Bangers',cursive;font-size:18px;letter-spacing:2px;color:#ffe600;">🏆 TOP 5 RUNNERS</div>
+        <button onclick="loadLeaderboard()" style="font-size:11px;color:#444;background:none;border:0.5px solid #333;padding:3px 10px;border-radius:999px;cursor:pointer;letter-spacing:1px;">↻ REFRESH</button>
+      </div>
+      <div id="leaderboard-list">
+        <div style="font-size:12px;color:#333;text-align:center;padding:10px;letter-spacing:1px;">Loading...</div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -168,6 +189,7 @@
       obstacles=[]; particles=[];
       dino.y=GROUND; dino.vy=0; dino.jumps=0; dino.legPhase=0;
       document.getElementById('game-msg').style.display='none';
+      document.getElementById('name-form').style.display='none';
     }
 
     function die(){
@@ -177,6 +199,12 @@
       const msg=document.getElementById('game-msg');
       msg.style.display='block';
       msg.innerHTML='<div style="font-family:Bangers,cursive;font-size:clamp(14px,3vw,20px);color:#cc2222;letter-spacing:2px;margin-bottom:6px;">RUG PULLED! &#128565;</div><div style="font-size:11px;color:#666;letter-spacing:1px;">score: '+score+' &#183; tap to retry</div>';
+      if(score>0){
+        document.getElementById('name-form').style.display='block';
+        document.getElementById('submit-msg').textContent='';
+        document.getElementById('submit-score-btn').disabled=false;
+        document.getElementById('submit-score-btn').textContent='SUBMIT';
+      }
     }
 
     function spawnParticles(x,y,col,n){
@@ -367,7 +395,61 @@
     canvas.addEventListener('touchstart',e=>{e.preventDefault();jump();},{passive:false});
 
     loop();
+    loadLeaderboard();
   })();
+
+  const API_URL = 'https://script.google.com/macros/s/AKfycbzCNJtANYysvsvCWnjDZZEDWsoo_m9qOyCBOSXLPquwEh2pG3mkQSg8GekAcEcY8w/exec';
+
+  async function loadLeaderboard(){
+    const el=document.getElementById('leaderboard-list');
+    try{
+      const res=await fetch(API_URL);
+      const data=await res.json();
+      if(!data.length){
+        el.innerHTML='<div style="font-size:12px;color:#333;text-align:center;padding:10px;letter-spacing:1px;">No scores yet — be the first! 🦖</div>';
+        return;
+      }
+      const medals=['🥇','🥈','🥉','4️⃣','5️⃣'];
+      el.innerHTML=data.map((d,i)=>`
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;margin-bottom:6px;background:#0d0d0d;border-radius:8px;${i===0?'border:1px solid #3a3000;':''}">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:18px;">${medals[i]}</span>
+            <span style="font-family:'Bangers',cursive;font-size:16px;letter-spacing:1px;color:${i===0?'#ffe600':i===1?'#ccc':i===2?'#cd7f32':'#555'}">${d.name}</span>
+          </div>
+          <span style="font-family:'Bangers',cursive;font-size:18px;letter-spacing:2px;color:${i===0?'#00ff88':'#444'}">${d.score}</span>
+        </div>
+      `).join('');
+    }catch(e){
+      el.innerHTML='<div style="font-size:12px;color:#333;text-align:center;padding:10px;">Failed to load — try refresh</div>';
+    }
+  }
+
+  async function submitScore(){
+    const nameEl=document.getElementById('player-name');
+    const btn=document.getElementById('submit-score-btn');
+    const msg=document.getElementById('submit-msg');
+    const name=(nameEl.value||'').trim();
+    const currentScore=parseInt(document.getElementById('score-display').textContent)||0;
+    if(!name){nameEl.focus();msg.textContent='Please enter your name first!';msg.style.color='#cc4444';return;}
+    if(currentScore<=0){msg.textContent='Score too low to submit!';msg.style.color='#cc4444';return;}
+    btn.disabled=true; btn.textContent='SUBMITTING...';
+    msg.textContent=''; msg.style.color='#555';
+    try{
+      await fetch(API_URL,{
+        method:'POST',
+        body:JSON.stringify({name,score:currentScore}),
+      });
+      msg.textContent='Score submitted! 🎉';
+      msg.style.color='#00ff88';
+      btn.textContent='SUBMITTED ✓';
+      loadLeaderboard();
+    }catch(e){
+      msg.textContent='Failed to submit. Try again.';
+      msg.style.color='#cc4444';
+      btn.disabled=false;
+      btn.textContent='SUBMIT';
+    }
+  }
   </script>
 
   <div class="desc-card">
